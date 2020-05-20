@@ -17,14 +17,14 @@
 #import "JFCSTopToolsTableViewCell.h"
 #import "JFCSTableViewHeaderView.h"
 #import "JFCSFileManager.h"
-
+#import <CoreLocation/CoreLocation.h>
 
 #define JFWeakSelf(type)  __weak typeof(type) weak##type = type;
 #define JFStrongSelf(type)  __strong typeof(type) type = weak##type;
 
 #define kHeaderCitiesSectionIndex @"切换区县"
 
-@interface JFCSTableViewController ()<UITableViewDelegate, UITableViewDataSource>
+@interface JFCSTableViewController ()<UITableViewDelegate, UITableViewDataSource ,CLLocationManagerDelegate>
 
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) NSMutableArray *dataMutableArray;
@@ -46,6 +46,8 @@
 @property (nonatomic, strong) JFCSConfiguration *config;
 @property (nonatomic, weak) id<JFCSTableViewControllerDelegate> delegate;
 @property (nonatomic, strong) JFCSBaseInfoModel *currentCityModel;
+@property (nonatomic, strong) CLLocationManager* locationManager;
+@property (nonatomic, strong) CLLocation* location;
 
 @end
 
@@ -71,6 +73,9 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
+   
+  
+    
     self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithImage:[[JFCSFileManager getImageWithName:_config.leftBarButtonItemImageName] imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal] style:UIBarButtonItemStylePlain target:self action:@selector(leftBarButtonItemAction)];
     
     if (_config.searchButton) {
@@ -80,7 +85,81 @@
     
     [self.view addSubview:self.tableView];
     [self initData];
+    //检测定位功能是否开启
+       if (_config.isLocation == YES){
+           if([CLLocationManager locationServicesEnabled]){
+                 
+                 if(!_locationManager){
+                     
+                     self.locationManager = [[CLLocationManager alloc] init];
+                     
+                     if([self.locationManager respondsToSelector:@selector(requestWhenInUseAuthorization)]){
+                         [self.locationManager requestWhenInUseAuthorization];
+                         [self.locationManager requestAlwaysAuthorization];
+                         
+                     }
+                     
+                     //设置代理
+                     [self.locationManager setDelegate:self];
+                     //设置定位精度
+                     [self.locationManager setDesiredAccuracy:kCLLocationAccuracyBest];
+                     //设置距离筛选
+                     [self.locationManager setDistanceFilter:100];
+                     //开始定位
+                     [self.locationManager startUpdatingLocation];
+                    
+                     
+                 }
+                 
+             }else{
+                 UIAlertController *alertView = [UIAlertController alertControllerWithTitle:@"您没有开启定位功能" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+                 [alertView addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
+                 [self presentViewController:alertView animated:YES completion:nil];
+
+             }
+       }
 }
+
+#pragma mark ---//定位代理
+- (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray *)locations {
+    [self.locationManager stopUpdatingLocation];
+    CLLocation* location = locations.lastObject;
+    if (self.location == nil){
+        self.location = location;
+        CLGeocoder* geoCoder = [[CLGeocoder alloc]init];
+
+        JFWeakSelf(self);
+        [geoCoder reverseGeocodeLocation:location completionHandler:^(NSArray<CLPlacemark *> * _Nullable placemarks, NSError * _Nullable error) {
+            JFStrongSelf(self);
+            if(placemarks.count>0) {
+
+                   CLPlacemark*placeMark = placemarks[0];
+
+                 NSString * currentCity= placeMark.locality;
+                if (currentCity != nil && currentCity.length > 0){
+                    JFCSBaseInfoModel *locationModel = [[JFCSBaseInfoModel alloc] init];
+                    locationModel.name = currentCity;
+                    [self.historyRecordMutableArray insertObject:locationModel atIndex:0];
+                    [self.historyRecordNameMutableArray insertObject:currentCity atIndex:0];
+                    
+                    if (!self.config.hiddenHistoricalRecord && self.historyRecordNameMutableArray.count == 1) {
+                        [self insertHistoricalRecordCellData];
+                    }
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                         JFStrongSelf(self);
+                        [self.tableView reloadData];
+                    });
+                    
+                  
+                }
+                
+            }
+        }];
+    }
+   
+
+}
+
 
 #pragma mark -- UITableViewDelegate/UITableViewDataSource
 
@@ -133,7 +212,12 @@
                         [self selectCityCallBack:self.historyRecordMutableArray[index]];
                     }];
                 }
-                [_historyRecordCell setupData:self.historyRecordNameMutableArray];
+                BOOL isLocation = NO;
+                if  (self.location != nil){
+                    isLocation = YES;
+                }
+                
+                [_historyRecordCell setupData:self.historyRecordNameMutableArray isLocation:isLocation];
                 return _historyRecordCell;
             } else {
                 JFCSBaseInfoModel *model = self.dataMutableArray[indexPath.section][indexPath.row];
@@ -203,9 +287,18 @@
     self.dataOpreation = [[JFCSDataOpreation alloc] initWithConfiguration:_config];
     self.currentCityModel =  [self.dataOpreation currentCity];
     self.historyRecordMutableArray = [[self.dataOpreation historyRecordCities] mutableCopy];
+    
     [self.historyRecordMutableArray enumerateObjectsUsingBlock:^(JFCSBaseInfoModel * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+     
         [self.historyRecordNameMutableArray addObject:obj.name];
     }];
+    if (self.historyRecordMutableArray == nil){
+        self.historyRecordMutableArray = [NSMutableArray new];
+    }
+    if (self.historyRecordNameMutableArray == nil){
+        self.historyRecordNameMutableArray = [NSMutableArray new];
+    }
+    
     [self.config.popularCitiesMutableArray enumerateObjectsUsingBlock:^(JFCSPopularCitiesModel * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         [self.popularCitiesNameMutableArray addObject:obj.name];
     }];
@@ -262,6 +355,7 @@
     }
     return _tableView;
 }
+
 
 - (UIButton *)searchButton {
     if (!_searchButton) {

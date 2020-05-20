@@ -59,6 +59,8 @@ NS_ASSUME_NONNULL_BEGIN
  默认 最近访问
  */
 @property (nonatomic, copy) NSString *historicalRecordTitle;
+/// 是否启用定位功能, 默认NO , 定位会在最近访问模块中显示
+@property (nonatomic, assign) BOOL isLocation;
 
 
 /**

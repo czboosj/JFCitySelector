@@ -36,6 +36,7 @@
     [super viewDidLoad];
     
     self.config = [[JFCSConfiguration alloc] init];
+    _config.isLocation = YES;
     self.dataOpreation = [[JFCSDataOpreation alloc] initWithConfiguration:self.config];
     
     self.title = @"JFCitySelector";

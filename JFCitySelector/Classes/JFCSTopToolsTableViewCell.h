@@ -19,10 +19,9 @@ typedef void(^topToolsCellSelectCityBlock)(NSInteger index);
 @property (nonatomic, strong) NSMutableArray <UIButton *>*buttonArr;
 
 @property (nonatomic, copy) topToolsCellSelectCityBlock selectCityBlock;
-
-- (void)setupData:(NSArray <NSString *>*)dataArr;
-
 - (void)topToolsCellSelectCityBlock:(topToolsCellSelectCityBlock)block;
+- (void)setupData:(NSArray <NSString *>*)dataArr isLocation:(BOOL)isLocation;
+- (void)setupData:(NSArray <NSString *>*)dataArr;
 
 @end
 
